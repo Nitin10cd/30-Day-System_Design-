@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: url-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: url_shortener
+    ports:
+      - "5433:5432"      # host:container — avoids clashing with any local Postgres on 5432
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: url-redis
+    ports:
+      - "6380:6379"      # avoids clashing with local Redis on 6379
+
+  mongo:
+    image: mongo:7
+    container_name: url-mongo
+    ports:
+      - "27018:27017"    # avoids clashing with local Mongo/Compass on 27017
+    volumes:
+      - mongo-data:/data/db
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: url-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: url-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+volumes:
+  pg-data:
+  mongo-data:
