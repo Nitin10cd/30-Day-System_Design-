@@ -1,0 +1,3045 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+_one_replication_recovery_circuit_breaker/.md
+_one_replication_recovery_circuit_breaker/config/db.js
+_one_replication_recovery_circuit_breaker/models/Product.js
+_one_replication_recovery_circuit_breaker/models/WAL.js
+_one_replication_recovery_circuit_breaker/package.json
+_one_replication_recovery_circuit_breaker/routes/productRoutes.js
+_one_replication_recovery_circuit_breaker/server.js
+_one_replication_recovery_circuit_breaker/services/circuitBreaker.js
+_one_replication_recovery_circuit_breaker/services/replicationService.js
+.md
+notification-service/.gitignore
+notification-service/docker-compose.yml
+notification-service/package.json
+notification-service/prisma.config.ts
+notification-service/prisma/schema.prisma
+notification-service/src/app.ts
+notification-service/src/config/env.ts
+notification-service/src/config/prisma.ts
+notification-service/src/config/redis..ts
+notification-service/src/controllers/notification.controller.ts
+notification-service/src/controllers/user.controller.ts
+notification-service/src/producers/notification.producer.ts
+notification-service/src/queues/queue.factory.ts
+notification-service/src/routes/notification.routes.ts
+notification-service/src/routes/user.routes.ts
+notification-service/src/server.ts
+notification-service/src/services/bloomFilter.service.ts
+notification-service/src/services/email.service.ts
+notification-service/src/types/notification.schema.ts
+notification-service/src/types/notification.types.ts
+notification-service/src/workers/worker.ts
+notification-service/tsconfig.json
+redis.js
+url-shortener/docker-compose.yml
+url-shortener/package.json
+url-shortener/prisma.config.ts
+url-shortener/prisma/migrations/20260708183932_init/migration.sql
+url-shortener/prisma/migrations/migration_lock.toml
+url-shortener/prisma/schema.prisma
+url-shortener/README.md
+url-shortener/src/app.ts
+url-shortener/src/config/env.ts
+url-shortener/src/config/kafka.ts
+url-shortener/src/config/mongo.ts
+url-shortener/src/config/prisma.ts
+url-shortener/src/config/redis.ts
+url-shortener/src/consumers/click.consumer.ts
+url-shortener/src/controllers/auth.controller.ts
+url-shortener/src/controllers/stats.controller.ts
+url-shortener/src/controllers/url.controller.ts
+url-shortener/src/middlewares/auth.middleware.ts
+url-shortener/src/middlewares/rateLimiter.middleware.ts
+url-shortener/src/producers/click.producer.ts
+url-shortener/src/routes/auth.routes.ts
+url-shortener/src/routes/stats.routes.ts
+url-shortener/src/routes/url.routes.ts
+url-shortener/src/server.ts
+url-shortener/src/services/auth.service.ts
+url-shortener/src/services/bloomFilter.service.ts
+url-shortener/src/services/shortCode.service.ts
+url-shortener/src/services/stats.service.ts
+url-shortener/src/services/url.service.ts
+url-shortener/src/types/auth.schema.ts
+url-shortener/src/types/click.types.ts
+url-shortener/src/types/url.schema.ts
+url-shortener/src/worker.ts
+url-shortener/tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="_one_replication_recovery_circuit_breaker/.md">
+# Practical Implementation - Data Replication, Circuit Breaker and Data Recovery
+
+## Table of Contents
+
+1. What We Built
+2. Tech Stack
+3. Project Structure
+4. Architecture Overview
+5. How Each Concept Was Implemented
+6. Write-Ahead Log Implementation
+7. Replication Service
+8. Circuit Breaker Implementation
+9. Data Recovery Implementation
+10. API Endpoints
+11. Complete Request Flow
+12. Testing With Postman
+13. What We Observed
+14. Key Learnings
+15. Summary
+
+---
+
+# What We Built
+
+A production-inspired backend system demonstrating:
+
+```text
+Data Replication
+
+Circuit Breaker Pattern
+
+Data Recovery Using WAL
+```
+
+Built on top of a simple Product API.
+
+Every concept maps directly to what real databases like PostgreSQL and MySQL do internally.
+
+---
+
+# Tech Stack
+
+```text
+Runtime         Node.js
+
+Framework       Express.js
+
+Database        MongoDB (via Mongoose)
+
+Primary DB      primary_db
+
+Replica DB      replica_db
+
+Tool            MongoDB Compass
+
+Testing         Postman
+```
+
+---
+
+# Project Structure
+
+```text
+project/
+
+   |
+
+   +---- config/
+
+   |        |
+
+   |        +---- db.js              Two separate DB connections
+
+   |
+
+   +---- models/
+
+   |        |
+
+   |        +---- Product.js         Schema registered on both DBs
+
+   |        |
+
+   |        +---- WAL.js             Write-Ahead Log model
+
+   |
+
+   +---- services/
+
+   |        |
+
+   |        +---- circuitBreaker.js  Circuit breaker state machine
+
+   |        |
+
+   |        +---- replicationService.js  WAL + replication + recovery
+
+   |
+
+   +---- routes/
+
+   |        |
+
+   |        +---- productRoutes.js   All API endpoints
+
+   |
+
+   +---- .env                        DB URIs and config
+
+   +---- server.js                   Entry point
+```
+
+---
+
+# Architecture Overview
+
+```text
+Client Request
+
+      |
+
+      v
+
+Express Server
+
+      |
+
+      v
+
+Product Routes
+
+      |
+
+ +----+----+
+
+ |         |
+
+Write      Read
+
+ |         |
+
+ v         v
+
+Primary   Circuit Breaker
+
+   DB         |
+
+ |        +---+---+
+
+ v        |       |
+
+WAL    Replica  Primary
+
+Log    (healthy) (fallback)
+
+ |
+
+ v
+
+Replicate
+
+To Replica
+```
+
+---
+
+# How Each Concept Was Implemented
+
+---
+
+## Two Databases
+
+Instead of a real network replica, we used two separate MongoDB databases on the same instance.
+
+```text
+primary_db   →  Accepts all writes
+
+replica_db   →  Receives replicated data, serves reads
+```
+
+Two separate Mongoose connections created in `config/db.js`.
+
+```text
+primaryConn  →  mongodb://localhost:27017/primary_db
+
+replicaConn  →  mongodb://localhost:27017/replica_db
+```
+
+Same schema registered on both connections separately.
+
+This simulates how a real replica set works where both nodes have identical schema.
+
+---
+
+# Write-Ahead Log Implementation
+
+WAL is stored as a MongoDB collection on the primary database.
+
+Schema:
+
+```text
+operation          INSERT / UPDATE / DELETE
+
+documentId         MongoDB ObjectId of the affected document
+
+data               Full document snapshot at time of write
+
+appliedToReplica   Boolean flag, false until replica confirms
+
+timestamp          When the write happened
+```
+
+Flow:
+
+```text
+Write Request Arrives
+
+        |
+
+        v
+
+WAL Entry Created With appliedToReplica = false
+
+        |
+
+        v
+
+Write Applied To Primary DB
+
+        |
+
+        v
+
+Replication Attempted
+
+        |
+
+ +------+------+
+
+ |             |
+
+Success      Failure
+
+ |             |
+
+WAL Entry    WAL Entry Stays
+
+Marked       appliedToReplica = false
+
+true         (will be recovered later)
+```
+
+This guarantees:
+
+```text
+No Write Is Ever Lost
+
+Even If Replica Is Down At Time Of Write
+```
+
+---
+
+# Replication Service
+
+Located at `services/replicationService.js`.
+
+Three responsibilities:
+
+```text
+replicate()   →  Log to WAL and sync to replica after every write
+
+recover()     →  Replay all pending WAL entries when replica comes back
+
+getLag()      →  Count how many WAL entries are still pending
+```
+
+---
+
+## replicate() Flow
+
+```text
+New Product Created On Primary
+
+        |
+
+        v
+
+WAL Entry Logged
+
+        |
+
+        v
+
+Circuit Breaker Called
+
+        |
+
+ +------+------+
+
+ |             |
+
+Circuit       Circuit
+
+Closed        Open
+
+ |             |
+
+Replica       WAL Entry
+
+Updated       Stays Pending
+
+ |
+
+WAL Marked
+
+Applied
+```
+
+---
+
+## Reads Use Replica With Fallback
+
+```text
+GET /api/products
+
+        |
+
+        v
+
+Try Replica Via Circuit Breaker
+
+        |
+
+ +------+------+
+
+ |             |
+
+Replica       Circuit Open
+
+Healthy       Or Replica Down
+
+ |             |
+
+Return        Fallback To Primary
+
+From          Return From Primary
+
+Replica       With source: primary (fallback)
+```
+
+Client always gets a response.
+
+System never goes completely down.
+
+---
+
+# Circuit Breaker Implementation
+
+Located at `services/circuitBreaker.js`.
+
+State machine with three states:
+
+```text
+CLOSED  →  Requests pass through to replica
+
+OPEN    →  Requests blocked, error thrown immediately
+
+HALF_OPEN  →  One test request allowed through
+```
+
+Configuration via `.env`:
+
+```text
+CB_FAILURE_THRESHOLD = 3      Circuit opens after 3 failures
+
+CB_RECOVERY_TIMEOUT  = 15000  Wait 15 seconds before testing recovery
+```
+
+---
+
+## State Transitions
+
+```text
+Initial State  →  CLOSED
+
+3 Failures     →  OPEN
+
+15 Seconds     →  HALF_OPEN
+
+Test Passes    →  CLOSED
+
+Test Fails     →  OPEN Again
+```
+
+---
+
+## What Happens In Each State
+
+```text
+CLOSED
+
+Request → Circuit → Replica → Response
+
+OPEN
+
+Request → Circuit → Error Thrown → Fallback To Primary
+
+HALF_OPEN
+
+Request → Circuit → One Test Request → Replica
+
+                         |
+
+                    Pass → CLOSED
+
+                    Fail → OPEN
+```
+
+---
+
+# Data Recovery Implementation
+
+Located inside `replicationService.js` as the `recover()` function.
+
+Called manually via:
+
+```text
+POST /api/recover
+```
+
+Flow:
+
+```text
+Recovery Triggered
+
+        |
+
+        v
+
+Find All WAL Entries Where appliedToReplica = false
+
+Sort By Timestamp Ascending
+
+        |
+
+        v
+
+For Each Pending Entry
+
+        |
+
+        v
+
+Call Circuit Breaker
+
+        |
+
+ +------+------+
+
+ |             |
+
+Circuit       Circuit
+
+Closed        Open
+
+ |             |
+
+Apply Entry   Stop Recovery
+
+To Replica    Return Error
+
+ |
+
+Mark Entry
+
+appliedToReplica = true
+
+        |
+
+        v
+
+Next Entry
+
+        |
+
+        v
+
+All Entries Applied
+
+Replica Fully In Sync
+```
+
+---
+
+# API Endpoints
+
+```text
+Method    Route                  Purpose
+
+POST      /api/products          Create product on primary, replicate
+
+GET       /api/products          Read from replica, fallback to primary
+
+GET       /api/products/:id      Read one from replica, fallback to primary
+
+PUT       /api/products/:id      Update on primary, replicate
+
+DELETE    /api/products/:id      Delete on primary, replicate
+
+POST      /api/recover           Trigger WAL replay on replica
+
+GET       /api/lag               Check pending WAL entries
+
+GET       /api/circuit-status    Check circuit breaker state
+```
+
+---
+
+# Complete Request Flow
+
+## Normal Write Flow
+
+```text
+POST /api/products
+
+      |
+
+Product Created On primary_db
+
+      |
+
+WAL Entry Logged  (appliedToReplica: false)
+
+      |
+
+Circuit Breaker → CLOSED
+
+      |
+
+Product Written To replica_db
+
+      |
+
+WAL Entry Updated  (appliedToReplica: true)
+
+      |
+
+Response Returned To Client
+
+source: "primary"
+```
+
+---
+
+## Replica Down Flow
+
+```text
+POST /api/products
+
+      |
+
+Product Created On primary_db
+
+      |
+
+WAL Entry Logged  (appliedToReplica: false)
+
+      |
+
+Circuit Breaker → Replica Unreachable
+
+      |
+
+Failure Count Incremented
+
+      |
+
+After 3 Failures → Circuit OPENS
+
+      |
+
+WAL Entry Stays Pending
+
+      |
+
+Response Still Returned To Client
+
+Data Is Safe In Primary + WAL
+```
+
+---
+
+## Recovery Flow
+
+```text
+Replica Comes Back Online
+
+      |
+
+.env Fixed With Correct URI
+
+      |
+
+Server Restarted
+
+      |
+
+POST /api/recover Called
+
+      |
+
+WAL Queried For Pending Entries
+
+      |
+
+Each Entry Replayed On Replica In Order
+
+      |
+
+All Entries Marked appliedToReplica: true
+
+      |
+
+GET /api/lag Returns inSync: true
+
+      |
+
+Replica Fully Caught Up
+```
+
+---
+
+# Testing With Postman
+
+## Test 1 — Normal Replication
+
+```text
+POST /api/products
+
+Body:
+
+{
+  "name": "Laptop",
+  "price": 75000,
+  "stock": 10,
+  "category": "electronics"
+}
+
+Expected:
+
+source: "primary"
+
+Both primary_db and replica_db have the product in Compass
+```
+
+---
+
+## Test 2 — Replication Lag Check
+
+```text
+GET /api/lag
+
+Expected:
+
+{
+  "totalWalEntries": 1,
+  "appliedToReplica": 1,
+  "pendingSync": 0,
+  "inSync": true
+}
+```
+
+---
+
+## Test 3 — Simulate Replica Failure
+
+```text
+Change .env:
+
+MONGO_REPLICA=mongodb://localhost:9999/replica_db
+
+Restart server
+
+POST /api/products  (3 times)
+
+Expected In Terminal:
+
+Failure 1/3
+Failure 2/3
+Failure 3/3
+Circuit OPEN
+```
+
+---
+
+## Test 4 — Check WAL Lag After Failure
+
+```text
+GET /api/lag
+
+Expected:
+
+{
+  "pendingSync": 3,
+  "inSync": false
+}
+```
+
+---
+
+## Test 5 — Check Circuit Breaker Status
+
+```text
+GET /api/circuit-status
+
+Expected:
+
+{
+  "state": "OPEN",
+  "failureCount": 3,
+  "recoveryIn": "12s"
+}
+```
+
+---
+
+## Test 6 — Data Recovery
+
+```text
+Restore .env:
+
+MONGO_REPLICA=mongodb://localhost:27017/replica_db
+
+Restart server
+
+POST /api/recover
+
+Expected:
+
+{
+  "success": true,
+  "recovered": 3,
+  "failed": 0,
+  "remaining": 0
+}
+
+Verify In Compass:
+
+replica_db now has all products
+```
+
+---
+
+# What We Observed
+
+```text
+Observation 1
+
+Every write was logged to WAL before replication was attempted.
+No data was lost even when replica was completely unreachable.
+
+Observation 2
+
+Circuit breaker opened after exactly 3 failures.
+Subsequent requests were blocked immediately without waiting for timeout.
+This saved significant time compared to waiting for each request to fail.
+
+Observation 3
+
+When circuit was OPEN, reads automatically fell back to primary.
+Users would have seen no downtime from the client side.
+
+Observation 4
+
+After restoring replica connection and triggering recovery,
+all pending WAL entries were replayed in chronological order.
+replica_db came back to full sync with primary_db.
+
+Observation 5
+
+GET /api/lag confirmed inSync: true after recovery.
+MongoDB Compass showed identical data in both databases.
+```
+
+---
+
+# Key Learnings
+
+```text
+WAL is the single source of truth for recovery.
+If WAL is intact, no data is ever permanently lost.
+
+Circuit breaker protects the entire system.
+Without it, a slow replica would slow down every single request.
+
+Fallback to primary ensures zero downtime for reads.
+Users never see an error just because replica is down.
+
+Recovery must replay WAL in order.
+Out of order replay causes data inconsistency.
+
+This same pattern is used by PostgreSQL WAL,
+MySQL binlog, and MongoDB oplog in production systems.
+```
+
+---
+
+# Summary
+
+- We built a Product API with full replication between two MongoDB databases.
+- Every write is first logged to WAL, then replicated to replica.
+- If replica is down, WAL stores the entry with appliedToReplica set to false.
+- Circuit breaker opens after 3 consecutive replica failures.
+- When circuit is open, reads fall back to primary automatically.
+- After 15 seconds circuit moves to HALF_OPEN and tests recovery.
+- Recovery endpoint replays all pending WAL entries in chronological order.
+- After recovery, replica is fully in sync with primary.
+- This mirrors exactly how PostgreSQL streaming replication and WAL recovery works.
+- The entire flow was verified end to end using Postman and MongoDB Compass.
+
+---
+
+# What To Build Next
+
+```text
+Caching Layer With Redis
+
+Rate Limiting
+
+Database Indexing and Query Optimization
+```
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/config/db.js">
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+// connection 
+const primaryConn = mongoose.createConnection(process.env.MONGO_PRIMARY);
+const replicaConn = mongoose.createConnection(process.env.MONGO_REPLICA);
+
+primaryConn.on('connected', () => console.log('Primary DB connected'));
+replicaConn.on('connected', () => console.log('Replica DB connected'));
+
+primaryConn.on('error', (err) => console.log('Primary error:', err.message));
+replicaConn.on('error', (err) => console.log('Replica error:', err.message));
+
+module.exports = { primaryConn, replicaConn };
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/models/Product.js">
+const mongoose = require('mongoose');
+const { primaryConn, replicaConn } = require('../config/db');
+
+
+// schema 
+const productSchema = new mongoose.Schema({
+  name:     { type: String, required: true },
+  price:    { type: Number, required: true },
+  stock:    { type: Number, default: 0 },
+  category: { type: String, default: 'general' },
+}, { timestamps: true });
+
+
+// TWO Diff Diff Connections for the diff replicas registration
+const ProductPrimary = primaryConn.model('Product', productSchema);
+const ProductReplica = replicaConn.model('Product', productSchema);
+
+module.exports = { ProductPrimary, ProductReplica };
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/models/WAL.js">
+const mongoose = require('mongoose');
+const { primaryConn } = require('../config/db');
+
+
+// WAL => write Ahed log , every write log here so in case replica crash we can recover 
+const walSchema = new mongoose.Schema({
+  operation:        { type: String, enum: ['INSERT', 'UPDATE', 'DELETE'], required: true },
+  documentId:       { type: mongoose.Schema.Types.ObjectId },
+  data:             { type: Object },
+  appliedToReplica: { type: Boolean, default: false },
+  timestamp:        { type: Date, default: Date.now },
+});
+
+// wal only stored in the primary DB
+const WAL = primaryConn.model('WAL', walSchema);
+
+module.exports = WAL;
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/package.json">
+{
+  "name": "_one_replication_recovery_circuit_breaker",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mongoose": "^9.7.1"
+  }
+}
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/routes/productRoutes.js">
+const express = require('express');
+const router = express.Router();
+const { ProductPrimary, ProductReplica } = require('../models/Product');
+const replicationService = require('../services/replicationService');
+const { replicaCircuitBreaker } = require('../services/circuitBreaker');
+
+// CREATE — always writes to primary, then replicates
+router.post('/products', async (req, res) => {
+  try {
+    const product = await ProductPrimary.create(req.body);
+    await replicationService.replicate('INSERT', product);
+
+    res.status(201).json({
+      success: true,
+      source:  'primary',
+      data:    product,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// READ ALL — tries replica first, falls back to primary if circuit is open
+router.get('/products', async (req, res) => {
+  try {
+    const products = await replicaCircuitBreaker.call(async () => {
+      return await ProductReplica.find();
+    });
+
+    res.json({ success: true, source: 'replica', data: products });
+
+  } catch (err) {
+    // Replica unavailable — fallback to primary
+    console.log(`[Fallback] Replica failed, reading from primary. Reason: ${err.message}`);
+    const products = await ProductPrimary.find();
+    res.json({ success: true, source: 'primary (fallback)', data: products });
+  }
+});
+
+// READ ONE — same fallback logic
+router.get('/products/:id', async (req, res) => {
+  try {
+    const product = await replicaCircuitBreaker.call(async () => {
+      return await ProductReplica.findById(req.params.id);
+    });
+
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+    res.json({ success: true, source: 'replica', data: product });
+
+  } catch (err) {
+    console.log(`[Fallback] Reading from primary. Reason: ${err.message}`);
+    const product = await ProductPrimary.findById(req.params.id);
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+    res.json({ success: true, source: 'primary (fallback)', data: product });
+  }
+});
+
+// UPDATE — writes to primary, replicates
+router.put('/products/:id', async (req, res) => {
+  try {
+    const product = await ProductPrimary.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedAt: Date.now() },
+      { new: true }
+    );
+
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    await replicationService.replicate('UPDATE', product);
+    res.json({ success: true, source: 'primary', data: product });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE — writes to primary, replicates
+router.delete('/products/:id', async (req, res) => {
+  try {
+    const product = await ProductPrimary.findByIdAndDelete(req.params.id);
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    await replicationService.replicate('DELETE', product);
+    res.json({ success: true, message: 'Product deleted', data: product });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// RECOVERY — call this when replica comes back online
+router.post('/recover', async (req, res) => {
+  try {
+    const result = await replicationService.recover();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// REPLICATION LAG — check how many entries are pending
+router.get('/lag', async (req, res) => {
+  try {
+    const lag = await replicationService.getLag();
+    res.json({ success: true, ...lag });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// CIRCUIT BREAKER STATUS — check current state
+router.get('/circuit-status', (req, res) => {
+  res.json({ success: true, circuitBreaker: replicaCircuitBreaker.getStatus() });
+});
+
+module.exports = router;
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/server.js">
+require('dotenv').config();
+const express = require('express');
+const productRoutes = require('./routes/productRoutes');
+
+const app = express();
+
+app.use(express.json());
+app.use('/api', productRoutes);
+
+// Health check
+app.get('/', (req, res) => {
+  res.json({ message: 'Replication Demo Server Running' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/services/circuitBreaker.js">
+// Here we have the 3 states
+// CLOSED -> ALL OK, REQUESTS TRAVERS PROPERLY
+// OPEN -> TOO MANY FAILURES , BLOCK REPLICA 
+// HALF OPEN -> AFTER TIMEOUT HIT REQ FOR TEST
+
+
+const STATES = {
+  CLOSED:    'CLOSED',
+  OPEN:      'OPEN',
+  HALF_OPEN: 'HALF_OPEN',
+};
+
+class CircuitBreaker {
+  constructor(name) {
+    this.name             = name;
+    this.state            = STATES.CLOSED;
+    this.failureCount     = 0;
+    this.lastFailureTime  = null;
+    this.failureThreshold = parseInt(process.env.CB_FAILURE_THRESHOLD) || 3;
+    this.recoveryTimeout  = parseInt(process.env.CB_RECOVERY_TIMEOUT)  || 15000;
+  }
+
+  async call(asyncFn) {
+    if (this.state === STATES.OPEN) {
+      const elapsed = Date.now() - this.lastFailureTime;
+
+      if (elapsed >= this.recoveryTimeout) {
+        console.log(`[CB] Timeout passed → HALF_OPEN`);
+        this.state = STATES.HALF_OPEN;
+      } else {
+        const remaining = Math.ceil((this.recoveryTimeout - elapsed) / 1000);
+        throw new Error(`Circuit OPEN. Retry in ${remaining}s`);
+      }
+    }
+
+    try {
+      const result = await asyncFn();
+      this._onSuccess();
+      return result;
+    } catch (err) {
+      this._onFailure(err);
+      throw err;
+    }
+  }
+
+  _onSuccess() {
+    this.failureCount = 0;
+    if (this.state === STATES.HALF_OPEN) {
+      console.log(`[CB:${this.name}]  Replica wapas aaya → CLOSED`);
+    }
+    this.state = STATES.CLOSED;
+  }
+
+  _onFailure(err) {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    console.log(`[CB:${this.name}] Failure ${this.failureCount}/${this.failureThreshold}`);
+
+    if (this.failureCount >= this.failureThreshold || this.state === STATES.HALF_OPEN) {
+      this.state = STATES.OPEN;
+      console.log(`[CB:${this.name}]  Circuit OPEN — ${this.recoveryTimeout / 1000}s ke liye block`);
+    }
+  }
+
+  getStatus() {
+    return {
+      name:         this.name,
+      state:        this.state,
+      failureCount: this.failureCount,
+      recoveryIn:   this.state === STATES.OPEN
+        ? Math.max(0, Math.ceil((this.recoveryTimeout - (Date.now() - this.lastFailureTime)) / 1000)) + 's'
+        : null,
+    };
+  }
+}
+
+const replicaCircuitBreaker = new CircuitBreaker('replica-db');
+
+module.exports = { replicaCircuitBreaker };
+
+
+/**
+ *  CIRCCUIT BREAKER FLOW  => 
+ * 1: REPLICA FAIL 1ST TIME -> FAILURE COUNT = 1
+ * REPLICA FAIL 2ND TIEM -> FAILUER COUNT = 2
+ * IF AGAIN FAILED 3RD TIME THEN CIRCUIT OPEN MEANS BLOCK 
+ * 
+ * 2: AFTER 15 SEC HALF OPEN AND IF THE REQUEST PASSED THEN CLOSE  
+ * 
+ * IF FAIL AGAIN OPEN CIRCUIT 
+ * 
+ * 
+ */
+</file>
+
+<file path="_one_replication_recovery_circuit_breaker/services/replicationService.js">
+const { ProductPrimary, ProductReplica } = require('../models/Product');
+const WAL = require('../models/WAL');
+const { replicaCircuitBreaker } = require('./circuitBreaker');
+
+const replicationService = {
+
+  // Called after every write to primary DB
+  async replicate(operation, document) {
+
+    // Step 1 — log to WAL before attempting replication
+    // This ensures we never lose a write even if replica is down
+    const walEntry = await WAL.create({
+      operation,
+      documentId:       document._id,
+      data:             document.toObject(),
+      appliedToReplica: false,
+    });
+
+    console.log(`[WAL] Logged ${operation} for document ${document._id}`);
+
+    // Step 2 — attempt replication through circuit breaker
+    // Circuit breaker will block the call if replica has been failing
+    try {
+      await replicaCircuitBreaker.call(async () => {
+        await this._applyToReplica(operation, document.toObject());
+      });
+
+      // Step 3 — mark WAL entry as applied on success
+      walEntry.appliedToReplica = true;
+      await walEntry.save();
+      console.log(`[Replication] ${operation} successfully synced to replica`);
+
+    } catch (err) {
+      // Replica is down or circuit is open
+      // WAL entry remains with appliedToReplica: false
+      // It will be replayed during recovery
+      console.log(`[Replication] Replica unavailable. Entry saved in WAL for later recovery. Reason: ${err.message}`);
+    }
+  },
+
+  // Applies a single operation directly to the replica DB
+  async _applyToReplica(operation, data) {
+    if (operation === 'INSERT' || operation === 'UPDATE') {
+      await ProductReplica.findByIdAndUpdate(
+        data._id,
+        data,
+        { upsert: true, new: true }
+      );
+    } else if (operation === 'DELETE') {
+      await ProductReplica.findByIdAndDelete(data._id);
+    }
+  },
+
+  // Replays all pending WAL entries to bring replica back in sync
+  // Call this endpoint when replica comes back online after a crash
+  async recover() {
+    const pending = await WAL.find({ appliedToReplica: false }).sort({ timestamp: 1 });
+
+    if (pending.length === 0) {
+      return { message: 'Replica is already in sync. Nothing to recover.', recovered: 0 };
+    }
+
+    console.log(`[Recovery] Found ${pending.length} pending WAL entries. Starting replay...`);
+
+    let recovered = 0;
+    const errors  = [];
+
+    for (const entry of pending) {
+      try {
+        await replicaCircuitBreaker.call(async () => {
+          await this._applyToReplica(entry.operation, entry.data);
+        });
+
+        entry.appliedToReplica = true;
+        await entry.save();
+        recovered++;
+        console.log(`[Recovery] Replayed ${entry.operation} for document ${entry.documentId}`);
+
+      } catch (err) {
+        errors.push({ docId: entry.documentId, error: err.message });
+        console.log(`[Recovery] Failed to replay entry: ${err.message}`);
+        break; // stop replay if circuit is still open
+      }
+    }
+
+    return {
+      message:   'Recovery complete',
+      recovered,
+      failed:    errors.length,
+      remaining: pending.length - recovered,
+      errors,
+    };
+  },
+
+  // Returns how many WAL entries are still pending replication
+  // Use this to monitor replication lag
+  async getLag() {
+    const total   = await WAL.countDocuments();
+    const pending = await WAL.countDocuments({ appliedToReplica: false });
+
+    return {
+      totalWalEntries:  total,
+      appliedToReplica: total - pending,
+      pendingSync:      pending,
+      inSync:           pending === 0,
+    };
+  },
+};
+
+module.exports = replicationService;
+</file>
+
+<file path=".md">
+# this Directory contains only the practical implementation of the concepts
+</file>
+
+<file path="notification-service/.gitignore">
+node_modules
+# Keep environment variables out of version control
+.env
+
+/src/generated/prisma
+</file>
+
+<file path="notification-service/docker-compose.yml">
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+</file>
+
+<file path="notification-service/package.json">
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "main": "index.js",
+ "scripts": {
+  "build": "tsc -p tsconfig.json",
+  "dev:api": "ts-node-dev --respawn --transpile-only src/server.ts",
+  "dev:worker": "ts-node-dev --respawn --transpile-only src/workers/worker.ts",
+  "start:api": "node dist/server.js",
+  "start:worker": "node dist/workers/worker.js",
+  "prisma:migrate": "prisma migrate dev",
+  "prisma:studio": "prisma studio",
+  "typecheck": "tsc --noEmit"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bullmq": "^5.79.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ioredis": "^5.11.1",
+    "nodemailer": "^9.0.3",
+    "twilio": "^6.0.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.0",
+    "@types/nodemailer": "^8.0.1",
+    "prisma": "^6.19.3",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="notification-service/prisma.config.ts">
+// This file was generated by Prisma and assumes you have installed the following:
+// npm install --save-dev prisma dotenv
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  engine: "classic",
+  datasource: {
+    url: env("DATABASE_URL"),
+  },
+});
+</file>
+
+<file path="notification-service/prisma/schema.prisma">
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  emailOptIn Boolean  @default(true)
+  segment    String?
+  createdAt  DateTime @default(now())
+  logs       NotificationLog[]
+}
+
+enum NotificationType {
+  CRITICAL
+  TRANSACTIONAL
+  MARKETING
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED_DUPLICATE
+  SKIPPED_OPTOUT
+}
+
+model NotificationLog {
+  id          String             @id @default(uuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id])
+  type        NotificationType
+  campaignId  String?
+  businessKey String?
+  status      NotificationStatus
+  message     String
+  createdAt   DateTime           @default(now())
+
+  @@index([userId, campaignId])
+  @@index([businessKey])
+}
+</file>
+
+<file path="notification-service/src/app.ts">
+import express, { Express } from 'express';
+import { notificationRouter } from './routes/notification.routes';
+import { userRouter } from './routes/user.routes';
+
+export function createApp(): Express {
+  const app = express();
+  app.use(express.json());
+
+  app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+  app.use('/', userRouter);
+  app.use('/', notificationRouter);
+
+  return app;
+}
+</file>
+
+<file path="notification-service/src/config/env.ts">
+import dotenv from 'dotenv';
+dotenv.config();
+
+function required(name: string, fallback?: string): string {
+  const val = process.env[name] ?? fallback;
+  if (val === undefined) throw new Error(`Missing required env var: ${name}`);
+  return val;
+}
+
+export const env = {
+  port: Number(process.env.PORT ?? 3000),
+
+  redisHost: required('REDIS_HOST', 'localhost'),
+  redisPort: Number(process.env.REDIS_PORT ?? 6379),
+
+  workerPriority: required('WORKER_PRIORITY', 'P1') as 'P1' | 'P2' | 'P3',
+  workerConcurrency: Number(process.env.WORKER_CONCURRENCY ?? 5),
+
+  smtpHost: process.env.SMTP_HOST ?? '',
+  smtpPort: Number(process.env.SMTP_PORT ?? 587),
+  smtpUser: process.env.SMTP_USER ?? '',
+  smtpPass: process.env.SMTP_PASS ?? '',
+  emailFrom: process.env.EMAIL_FROM ?? 'no-reply@example.com',
+};
+</file>
+
+<file path="notification-service/src/config/prisma.ts">
+import { PrismaClient } from '@prisma/client';
+
+export const prisma = new PrismaClient();
+</file>
+
+<file path="notification-service/src/config/redis..ts">
+import IORedis from 'ioredis';
+import { env } from './env';
+
+export const redisConnectionOptions = {
+  host: env.redisHost,
+  port: env.redisPort,
+  maxRetriesPerRequest: null as null,
+};
+
+export const redis = new IORedis(redisConnectionOptions);
+</file>
+
+<file path="notification-service/src/controllers/notification.controller.ts">
+import { Request, Response } from 'express';
+import { notificationRequestSchema } from '../types/notification.schema';
+import { NotificationProducer } from '../producers/notification.producer';
+
+export async function createNotification(req: Request, res: Response): Promise<void> {
+  const parsed = notificationRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', details: parsed.error.flatten() });
+    return;
+  }
+
+  const result = await NotificationProducer.enqueue(parsed.data);
+
+  if (result.status === 'queued') {
+    res.status(202).json(result);
+  } else {
+    res.status(200).json(result);
+  }
+}
+</file>
+
+<file path="notification-service/src/controllers/user.controller.ts">
+import { Request, Response } from 'express';
+import { prisma } from '../config/prisma';
+
+export async function createUser(req: Request, res: Response): Promise<void> {
+  const { name, email, segment } = req.body;
+  const user = await prisma.user.create({ data: { name, email, segment } });
+  res.status(201).json(user);
+}
+
+export async function getUser(req: Request, res: Response): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    include: { logs: true },
+  });
+  if (!user) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  res.json(user);
+}
+</file>
+
+<file path="notification-service/src/producers/notification.producer.ts">
+import { randomUUID } from 'crypto';
+import { redis } from '../config/redis.';
+import { prisma } from '../config/prisma';
+import { getQueue } from '../queues/queue.factory';
+import { BloomFilterService } from '../services/bloomFilter.service';
+import {
+  EnqueueResult, NotificationJobData, NotificationRequest, Priority, priorityForType,
+} from '../types/notification.types';
+
+export class NotificationProducer {
+  static async enqueue(req: NotificationRequest): Promise<EnqueueResult> {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) throw new Error('user not found');
+
+    const priority = priorityForType[req.type];
+
+    // opt-out is checked FIRST, before any dedup logic - cheapest possible
+    // short circuit, and there's simply no dedup decision to make if we're
+    // not sending anything anyway
+    if (!user.emailOptIn) {
+      await this.log(req, 'SKIPPED_OPTOUT');
+      return { id: req.id ?? randomUUID(), status: 'skipped_optout', priority };
+    }
+
+    if (req.type === 'CRITICAL') return this.sendCritical(req, priority);
+    if (req.type === 'MARKETING') return this.sendMarketing(req, priority);
+    return this.sendTransactional(req, priority);
+  }
+
+  // CRITICAL: NO business-level dedup, on purpose. OTP resends, fraud alerts -
+  // these should always get through even if it "looks like" a repeat.
+  private static async sendCritical(req: NotificationRequest, priority: Priority): Promise<EnqueueResult> {
+    const id = req.id ?? randomUUID();
+    await this.log(req, 'QUEUED', id);
+    await this.push(req, id, priority);
+    return { id, status: 'queued', priority };
+  }
+
+  // MARKETING: bloom filter gate, keyed by (campaignId, userId).
+  private static async sendMarketing(req: NotificationRequest, priority: Priority): Promise<EnqueueResult> {
+    const dedupItem = `${req.campaignId}:${req.userId}`;
+    const alreadySent = await BloomFilterService.mightContain(req.campaignId!, dedupItem);
+
+    if (alreadySent) {
+      await this.log(req, 'SKIPPED_DUPLICATE');
+      return { id: req.id ?? randomUUID(), status: 'duplicate', priority };
+    }
+
+    const id = req.id ?? randomUUID();
+    // claim BEFORE enqueueing - prevents two near-simultaneous requests
+    // for the same (campaign, user) both slipping through
+    await BloomFilterService.add(req.campaignId!, dedupItem);
+    await this.log(req, 'QUEUED', id);
+    await this.push(req, id, priority);
+    return { id, status: 'queued', priority };
+  }
+
+  // TRANSACTIONAL: exact dedup on a caller-supplied business key
+  // (e.g. "order:123:shipped"). Volume is bounded by real business events,
+  // so a precise check is affordable and correctness actually matters here.
+  private static async sendTransactional(req: NotificationRequest, priority: Priority): Promise<EnqueueResult> {
+    const dedupKey = `notify:dedup:${req.businessKey}`;
+    const claimed = await redis.set(dedupKey, '1', 'EX', 60 * 60 * 24 * 7, 'NX');
+
+    if (claimed !== 'OK') {
+      await this.log(req, 'SKIPPED_DUPLICATE');
+      return { id: req.id ?? randomUUID(), status: 'duplicate', priority };
+    }
+
+    const id = req.id ?? randomUUID();
+    await this.log(req, 'QUEUED', id);
+    await this.push(req, id, priority);
+    return { id, status: 'queued', priority };
+  }
+
+  // every outcome - queued, duplicate, opted-out - is written to NotificationDB.
+  // this is the audit trail: "did user X get message Y, and if not, why"
+  private static async log(req: NotificationRequest, status: string, id?: string) {
+    await prisma.notificationLog.create({
+      data: {
+        id: id ?? randomUUID(),
+        userId: req.userId,
+        type: req.type,
+        campaignId: req.campaignId,
+        businessKey: req.businessKey,
+        status: status as any,
+        message: req.message,
+      },
+    });
+  }
+
+  // hand-off to the priority queue - your diagram's SQS1/P1/P2/P3 split
+  private static async push(req: NotificationRequest, id: string, priority: Priority) {
+    const jobData: NotificationJobData = { ...req, id, createdAt: Date.now() };
+    await getQueue(priority).add('send-notification', jobData, {
+      jobId: id, // BullMQ-level dedup on top of our own logic above
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 }, // transient SMTP errors get retried
+      removeOnComplete: { age: 3600, count: 1000 },
+      removeOnFail: { age: 86400 },
+    });
+  }
+}
+</file>
+
+<file path="notification-service/src/queues/queue.factory.ts">
+import { Queue } from 'bullmq';
+import { redisConnectionOptions } from '../config/redis.';
+import { NotificationJobData, Priority } from '../types/notification.types';
+
+export const queueNameFor = (priority: Priority) => `notifications-${priority}`;
+
+const queues: Record<Priority, Queue<NotificationJobData>> = {
+  P1: new Queue<NotificationJobData>(queueNameFor('P1'), { connection: redisConnectionOptions }),
+  P2: new Queue<NotificationJobData>(queueNameFor('P2'), { connection: redisConnectionOptions }),
+  P3: new Queue<NotificationJobData>(queueNameFor('P3'), { connection: redisConnectionOptions }),
+};
+
+export const getQueue = (priority: Priority): Queue<NotificationJobData> => queues[priority];
+export const allQueues = queues;
+</file>
+
+<file path="notification-service/src/routes/notification.routes.ts">
+import { Router } from 'express';
+import { createNotification } from '../controllers/notification.controller';
+
+export const notificationRouter = Router();
+notificationRouter.post('/notify', createNotification); // notify(n1, e) from the diagram
+</file>
+
+<file path="notification-service/src/routes/user.routes.ts">
+import { Router } from 'express';
+import { createUser, getUser } from '../controllers/user.controller';
+
+export const userRouter = Router();
+userRouter.post('/users', createUser);
+userRouter.get('/users/:id', getUser);
+</file>
+
+<file path="notification-service/src/server.ts">
+import { createApp } from './app';
+import { env } from './config/env';
+
+const app = createApp();
+
+app.listen(env.port, () => {
+  console.log(`[api] Control server listening on port ${env.port}`);
+});
+</file>
+
+<file path="notification-service/src/services/bloomFilter.service.ts">
+import { redis } from "../config/redis.";
+
+const BIT_SIZE = 1_000_000; // ~125KB per campaign bitset - tune to expected audience size
+const HASH_COUNT = 5;       // more hashes = fewer false positives, more Redis round trips
+
+function hash(str: string, seed: number): number {
+  let h = 2166136261 ^ seed;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h) % BIT_SIZE;
+}
+
+function bitPositions(item: string): number[] {
+  const positions: number[] = [];
+  for (let i = 0; i < HASH_COUNT; i++) positions.push(hash(item, i * 7919));
+  return positions;
+}
+
+export class BloomFilterService {
+  static keyFor(campaignId: string): string {
+    return `bloom:campaign:${campaignId}`;
+  }
+
+  /** Marks an item as seen. Call AFTER deciding to actually send. */
+  static async add(campaignId: string, item: string): Promise<void> {
+    const key = this.keyFor(campaignId);
+    const pipeline = redis.pipeline();
+    for (const pos of bitPositions(item)) pipeline.setbit(key, pos, 1);
+    await pipeline.exec();
+  }
+
+  /**
+   * false -> DEFINITELY not seen, safe to send.
+   * true  -> PROBABLY already sent (small false-positive rate), skip.
+   */
+  static async mightContain(campaignId: string, item: string): Promise<boolean> {
+    const key = this.keyFor(campaignId);
+    const pipeline = redis.pipeline();
+    for (const pos of bitPositions(item)) pipeline.getbit(key, pos);
+    const results = await pipeline.exec();
+    return (results ?? []).every(([err, bit]) => !err && bit === 1);
+  }
+}
+</file>
+
+<file path="notification-service/src/services/email.service.ts">
+import nodemailer, { Transporter } from 'nodemailer';
+import { env } from '../config/env';
+
+let transporter: Transporter | null = null;
+
+function getTransporter(): Transporter {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: env.smtpHost,
+      port: env.smtpPort,
+      secure: env.smtpPort === 465,
+      auth: { user: env.smtpUser, pass: env.smtpPass },
+    });
+  }
+  return transporter;
+}
+
+export interface SendEmailInput {
+  to: string;
+  subject?: string;
+  message: string;
+}
+
+export async function sendEmail(input: SendEmailInput): Promise<void> {
+  const tx = getTransporter();
+  await tx.sendMail({
+    from: env.emailFrom,
+    to: input.to,
+    subject: input.subject ?? 'Notification',
+    text: input.message,
+  });
+}
+</file>
+
+<file path="notification-service/src/types/notification.schema.ts">
+import { z } from 'zod';
+
+export const notificationRequestSchema = z.object({
+  id: z.string().uuid().optional(),
+  userId: z.string().uuid(),
+  type: z.enum(['CRITICAL', 'TRANSACTIONAL', 'MARKETING']),
+  campaignId: z.string().optional(),
+  businessKey: z.string().optional(),
+  subject: z.string().optional(),
+  message: z.string().min(1),
+}).refine(
+  (d) => d.type !== 'MARKETING' || !!d.campaignId,
+  { message: 'campaignId is required for MARKETING notifications', path: ['campaignId'] }
+).refine(
+  (d) => d.type !== 'TRANSACTIONAL' || !!d.businessKey,
+  { message: 'businessKey is required for TRANSACTIONAL notifications', path: ['businessKey'] }
+);
+</file>
+
+<file path="notification-service/src/types/notification.types.ts">
+export type Priority = 'P1' | 'P2' | 'P3';
+export type NotificationType = 'CRITICAL' | 'TRANSACTIONAL' | 'MARKETING';
+
+export const priorityForType: Record<NotificationType, Priority> = {
+  CRITICAL: 'P1',
+  TRANSACTIONAL: 'P2',
+  MARKETING: 'P3',
+};
+
+export interface NotificationRequest {
+  id?: string;
+  userId: string;
+  type: NotificationType;
+  campaignId?: string;    // required when type === 'MARKETING'
+  businessKey?: string;   // required when type === 'TRANSACTIONAL'
+  subject?: string;
+  message: string;
+}
+
+
+export interface NotificationJobData extends NotificationRequest {
+    id: string;
+    createdAt: number;
+}
+
+export type EnqueueStatus = 'queued' | 'duplicate' | 'skipped_optout';
+
+export interface EnqueueResult {
+  id: string;
+  status: EnqueueStatus;
+  priority: Priority;
+}
+</file>
+
+<file path="notification-service/src/workers/worker.ts">
+import { Job, Worker } from 'bullmq';
+import { redisConnectionOptions } from '../config/redis.';
+import { env } from '../config/env';
+import { prisma } from '../config/prisma';
+import { queueNameFor } from '../queues/queue.factory';
+import { NotificationJobData } from '../types/notification.types';
+import { sendEmail } from '../services/email.service';
+
+const priority = env.workerPriority;
+const queueName = queueNameFor(priority);
+
+async function processJob(job: Job<NotificationJobData>): Promise<void> {
+  const { id, userId, subject, message } = job.data;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('user not found');
+
+  console.log(`[worker:${priority}] processing job ${id} (EMAIL -> ${user.email})`);
+
+  try {
+    await sendEmail({ to: user.email, subject, message });
+    await prisma.notificationLog.update({ where: { id }, data: { status: 'SENT' } });
+  } catch (err) {
+    await prisma.notificationLog.update({ where: { id }, data: { status: 'FAILED' } });
+    throw err; // re-throw so BullMQ's attempts/backoff config actually retries
+  }
+}
+
+const worker = new Worker<NotificationJobData>(queueName, processJob, {
+  connection: redisConnectionOptions,
+  concurrency: env.workerConcurrency,
+});
+
+worker.on('completed', (job) => console.log(`[worker:${priority}] job ${job.id} completed`));
+worker.on('failed', (job, err) => console.error(`[worker:${priority}] job ${job?.id} failed:`, err.message));
+
+console.log(`[worker:${priority}] listening on "${queueName}" with concurrency ${env.workerConcurrency}`);
+
+process.on('SIGTERM', async () => {
+  console.log(`[worker:${priority}] shutting down...`);
+  await worker.close();
+  process.exit(0);
+});
+</file>
+
+<file path="notification-service/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+</file>
+
+<file path="redis.js">
+import express from "express";
+import Redis from "ioredis";
+import mongoose from "mongoose";
+
+const app = express();
+
+// ----------------------
+// Configuration
+// ----------------------
+const PORT = process.env.PORT || 3000;
+const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/app_db";
+const OTP_TTL_SECONDS = 30;
+
+// ----------------------
+// Redis Connection
+// ----------------------
+const redis = new Redis(REDIS_URL);
+
+// ----------------------
+// MongoDB Connection
+// ----------------------
+await mongoose.connect(MONGO_URI);
+
+// ----------------------
+// Middleware
+// ----------------------
+app.use(express.json());
+
+// ----------------------
+// Key Helpers
+// ----------------------
+const BANNER_KEY = "app:banner";
+
+function otpKey(phone) {
+  return `otp:${phone}`;
+}
+
+function userHashKey(id) {
+  return `user:${id}:hash`;
+}
+
+// ======================================================
+// OTP Routes
+// ======================================================
+
+// Generate and store an OTP for a given phone number
+app.post("/otp", async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({
+      success: false,
+      message: "Phone number is required",
+    });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await redis.set(otpKey(phone), otp, "EX", OTP_TTL_SECONDS);
+
+  // NOTE: In production, send the OTP via SMS instead of returning it in the response.
+  res.json({
+    success: true,
+    message: "OTP generated successfully",
+  });
+});
+
+// Verify an OTP for a given phone number
+app.post("/otp/verify", async (req, res) => {
+  const { phone, otp } = req.body;
+
+  if (!phone || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Phone number and OTP are required",
+    });
+  }
+
+  const savedOtp = await redis.get(otpKey(phone));
+
+  if (!savedOtp) {
+    return res.status(400).json({
+      success: false,
+      message: "OTP expired or not found",
+    });
+  }
+
+  if (savedOtp !== otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid OTP",
+    });
+  }
+
+  await redis.del(otpKey(phone));
+
+  res.json({
+    success: true,
+    message: "OTP verified successfully",
+  });
+});
+
+// Get remaining TTL for an OTP
+app.get("/otp/:phone/ttl", async (req, res) => {
+  const ttl = await redis.ttl(otpKey(req.params.phone));
+
+  res.json({ ttl });
+});
+
+// ======================================================
+// Health Checks
+// ======================================================
+
+app.get("/health/redis", async (req, res) => {
+  const reply = await redis.ping();
+
+  res.json({
+    redis: reply,
+  });
+});
+
+app.get("/health/mongo", async (req, res) => {
+  const state = mongoose.connection.readyState;
+
+  const stateMap = {
+    0: "disconnected",
+    1: "connected",
+    2: "connecting",
+    3: "disconnecting",
+  };
+
+  res.json({
+    mongo: stateMap[state] ?? "unknown",
+  });
+});
+
+// ======================================================
+// Banner (Redis String Example)
+// ======================================================
+
+// Create or update banner message
+app.post("/banner", async (req, res) => {
+  const message = req.body.message;
+
+  if (!message) {
+    return res.status(400).json({
+      success: false,
+      message: "Message is required",
+    });
+  }
+
+  await redis.set(BANNER_KEY, message);
+
+  res.json({
+    success: true,
+    message,
+  });
+});
+
+// Get current banner message
+app.get("/banner", async (req, res) => {
+  const message = await redis.get(BANNER_KEY);
+
+  res.json({ message });
+});
+
+// Delete banner message
+app.delete("/banner", async (req, res) => {
+  await redis.del(BANNER_KEY);
+
+  res.json({
+    success: true,
+    message: "Banner deleted",
+  });
+});
+
+// Check if banner exists
+app.get("/banner/exists", async (req, res) => {
+  const exists = await redis.exists(BANNER_KEY);
+
+  res.json({
+    exists: Boolean(exists),
+  });
+});
+
+// ======================================================
+// User Hash (Redis Hash Example)
+// ======================================================
+
+// Create a user hash
+app.post("/user/:id/hash", async (req, res) => {
+  const { name, email, age } = req.body;
+
+  await redis.hset(userHashKey(req.params.id), {
+    name,
+    email,
+    age: String(age),
+  });
+
+  res.json({
+    success: true,
+    message: "User saved",
+  });
+});
+
+// Get all fields of a user hash
+app.get("/user/:id/hash", async (req, res) => {
+  const user = await redis.hgetall(userHashKey(req.params.id));
+
+  res.json(user);
+});
+
+// Get a single field from a user hash
+app.get("/user/:id/hash/:field", async (req, res) => {
+  const value = await redis.hget(
+    userHashKey(req.params.id),
+    req.params.field
+  );
+
+  res.json({
+    field: req.params.field,
+    value,
+  });
+});
+
+// Update fields in a user hash
+app.patch("/user/:id/hash", async (req, res) => {
+  await redis.hset(userHashKey(req.params.id), req.body);
+
+  res.json({
+    success: true,
+    updated: req.body,
+  });
+});
+
+// Delete a single field from a user hash
+app.delete("/user/:id/hash/:field", async (req, res) => {
+  await redis.hdel(userHashKey(req.params.id), req.params.field);
+
+  res.json({
+    success: true,
+    deleted: req.params.field,
+  });
+});
+
+// Check if a user hash exists
+app.get("/user/:id/hash/exists", async (req, res) => {
+  const exists = await redis.exists(userHashKey(req.params.id));
+
+  res.json({
+    exists: Boolean(exists),
+  });
+});
+
+// Delete an entire user hash
+app.delete("/user/:id/hash", async (req, res) => {
+  await redis.del(userHashKey(req.params.id));
+
+  res.json({
+    success: true,
+    message: "User deleted",
+  });
+});
+
+// ======================================================
+// Start Server
+// ======================================================
+
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
+</file>
+
+<file path="url-shortener/docker-compose.yml">
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: url-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: url_shortener
+    ports:
+      - "5433:5432"      # host:container — avoids clashing with any local Postgres on 5432
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: url-redis
+    ports:
+      - "6380:6379"      # avoids clashing with local Redis on 6379
+
+  mongo:
+    image: mongo:7
+    container_name: url-mongo
+    ports:
+      - "27018:27017"    # avoids clashing with local Mongo/Compass on 27017
+    volumes:
+      - mongo-data:/data/db
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: url-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: url-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+volumes:
+  pg-data:
+  mongo-data:
+</file>
+
+<file path="url-shortener/package.json">
+{
+  "name": "url-shortener",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev:api": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev:worker": "ts-node-dev --respawn --transpile-only src/worker.ts",
+    "build": "tsc -p tsconfig.json",
+    "start:api": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bcrypt": "^6.0.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "kafkajs": "^2.2.4",
+    "mongodb": "^7.5.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.1.1",
+    "prisma": "^6.19.3",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
+  }
+}
+</file>
+
+<file path="url-shortener/prisma.config.ts">
+// This file was generated by Prisma and assumes you have installed the following:
+// npm install --save-dev prisma dotenv
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  engine: "classic",
+  datasource: {
+    url: env("DATABASE_URL"),
+  },
+});
+</file>
+
+<file path="url-shortener/prisma/migrations/20260708183932_init/migration.sql">
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Url" (
+    "id" TEXT NOT NULL,
+    "shortCode" TEXT NOT NULL,
+    "longUrl" TEXT NOT NULL,
+    "userId" TEXT,
+    "clicks" INTEGER NOT NULL DEFAULT 0,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "expiresAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Url_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Url_shortCode_key" ON "Url"("shortCode");
+
+-- CreateIndex
+CREATE INDEX "Url_userId_idx" ON "Url"("userId");
+
+-- AddForeignKey
+ALTER TABLE "Url" ADD CONSTRAINT "Url_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+</file>
+
+<file path="url-shortener/prisma/migrations/migration_lock.toml">
+# Please do not edit this file manually
+# It should be added in your version-control system (e.g., Git)
+provider = "postgresql"
+</file>
+
+<file path="url-shortener/prisma/schema.prisma">
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  urls      Url[]
+}
+
+model Url {
+  id         String    @id @default(uuid())
+  shortCode  String    @unique
+  longUrl    String
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  clicks     Int       @default(0)
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+</file>
+
+<file path="url-shortener/src/app.ts">
+import express, { Express } from 'express';
+import { authRouter } from './routes/auth.routes';
+import { urlRouter } from './routes/url.routes';
+import { statsRouter } from './routes/stats.routes';
+
+export function createApp(): Express {
+  const app = express();
+  app.use(express.json());
+  app.set('trust proxy', true);
+
+  app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+  app.use('/', authRouter);
+  app.use('/', statsRouter);
+  app.use('/', urlRouter); // keep last: has catch-all "/:code"
+
+  return app;
+}
+</file>
+
+<file path="url-shortener/src/config/env.ts">
+import dotenv from 'dotenv';
+dotenv.config();
+
+function required(name: string, fallback?: string): string {
+  const val = process.env[name] ?? fallback;
+  if (val === undefined) throw new Error(`Missing required env var: ${name}`);
+  return val;
+}
+
+export const env = {
+  port: Number(process.env.PORT ?? 3000),
+  baseUrl: required('BASE_URL', 'http://localhost:3000'),
+
+  databaseUrl: required('DATABASE_URL'),
+
+  redisHost: required('REDIS_HOST', 'localhost'),
+  redisPort: Number(process.env.REDIS_PORT ?? 6380),
+
+  kafkaBrokers: required('KAFKA_BROKERS', 'localhost:9092').split(','),
+  kafkaClickTopic: required('KAFKA_CLICK_TOPIC', 'url-clicks'),
+
+  mongoUrl: required('MONGO_URL', 'mongodb://localhost:27018'),
+  mongoDb: required('MONGO_DB', 'url_shortener_stats'),
+
+  jwtSecret: required('JWT_SECRET'),
+};
+</file>
+
+<file path="url-shortener/src/config/kafka.ts">
+import { Kafka } from 'kafkajs';
+import { env } from './env';
+
+export const kafka = new Kafka({
+  clientId: 'url-shortener',
+  brokers: env.kafkaBrokers,
+});
+</file>
+
+<file path="url-shortener/src/config/mongo.ts">
+import { MongoClient, Db } from 'mongodb';
+import { env } from './env';
+
+let db: Db | null = null;
+
+export async function getMongoDb(): Promise<Db> {
+  if (db) return db;
+  const client = new MongoClient(env.mongoUrl);
+  await client.connect();
+  db = client.db(env.mongoDb);
+  await db.collection('clicks').createIndex({ shortCode: 1, timestamp: -1 });
+  return db;
+}
+</file>
+
+<file path="url-shortener/src/config/prisma.ts">
+import { PrismaClient } from '@prisma/client';
+export const prisma = new PrismaClient();
+</file>
+
+<file path="url-shortener/src/config/redis.ts">
+import IORedis from 'ioredis';
+import { env } from './env';
+
+export const redisConnectionOptions = {
+  host: env.redisHost,
+  port: env.redisPort,
+  maxRetriesPerRequest: null as null,
+};
+
+export const redis = new IORedis(redisConnectionOptions);
+</file>
+
+<file path="url-shortener/src/consumers/click.consumer.ts">
+import { kafka } from '../config/kafka';
+import { env } from '../config/env';
+import { getMongoDb } from '../config/mongo';
+import { ClickEvent } from '../types/click.types';
+
+function parseOs(userAgent: string): string {
+  if (/windows/i.test(userAgent)) return 'Windows';
+  if (/mac os/i.test(userAgent)) return 'macOS';
+  if (/android/i.test(userAgent)) return 'Android';
+  if (/iphone|ipad/i.test(userAgent)) return 'iOS';
+  if (/linux/i.test(userAgent)) return 'Linux';
+  return 'Unknown';
+}
+
+export async function startClickConsumer() {
+  const consumer = kafka.consumer({ groupId: 'stats-consumer-group' });
+  await consumer.connect();
+  await consumer.subscribe({ topic: env.kafkaClickTopic, fromBeginning: false });
+
+  const db = await getMongoDb();
+  const clicks = db.collection('clicks');
+
+  await consumer.run({
+    eachMessage: async ({ message }) => {
+      if (!message.value) return;
+      const event: ClickEvent = JSON.parse(message.value.toString());
+
+      await clicks.insertOne({
+        ...event,
+        os: parseOs(event.userAgent),
+        createdAt: new Date(event.timestamp),
+      });
+
+      console.log(`[consumer] recorded click for ${event.shortCode}`);
+    },
+  });
+
+  console.log('[consumer] listening on topic', env.kafkaClickTopic);
+}
+</file>
+
+<file path="url-shortener/src/controllers/auth.controller.ts">
+import { Request, Response } from 'express';
+import { registerSchema, loginSchema } from '../types/auth.schema';
+import { AuthService } from '../services/auth.service';
+
+export async function register(req: Request, res: Response): Promise<void> {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', details: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const user = await AuthService.register(parsed.data.name, parsed.data.email, parsed.data.password);
+    res.status(201).json(user);
+  } catch (err: any) {
+    res.status(409).json({ error: err.message });
+  }
+}
+
+export async function login(req: Request, res: Response): Promise<void> {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', details: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const result = await AuthService.login(parsed.data.email, parsed.data.password);
+    res.json(result);
+  } catch (err: any) {
+    res.status(401).json({ error: err.message });
+  }
+}
+</file>
+
+<file path="url-shortener/src/controllers/stats.controller.ts">
+import { Request, Response } from 'express';
+import { StatsService } from '../services/stats.service';
+
+function toSingleString(value: string | string[] | undefined, fallback = ''): string {
+  if (Array.isArray(value)) return value[0] ?? fallback;
+  return value ?? fallback;
+}
+
+export async function getUrlStats(req: Request, res: Response): Promise<void> {
+  const code = toSingleString(req.params.code); 
+  const stats = await StatsService.getStatsFor(code);
+  res.json(stats);
+}
+</file>
+
+<file path="url-shortener/src/controllers/url.controller.ts">
+import { Response } from 'express';
+import { createUrlSchema } from '../types/url.schema';
+import { UrlService } from '../services/url.service';
+import { ClickProducer } from '../producers/click.producer';
+import { env } from '../config/env';
+import { AuthRequest } from '../middlewares/auth.middleware';
+
+// helper: header ya param jo bhi string | string[] | undefined ho, usse
+// hamesha ek clean string mein convert karo
+function toSingleString(value: string | string[] | undefined, fallback = ''): string {
+  if (Array.isArray(value)) return value[0] ?? fallback;
+  return value ?? fallback;
+}
+
+export async function createShortUrl(req: AuthRequest, res: Response): Promise<void> {
+  const parsed = createUrlSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', details: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const url = await UrlService.createShortUrl(parsed.data, req.userId);
+    res.status(201).json({ shortUrl: `${env.baseUrl}/${url.shortCode}`, ...url });
+  } catch (err: any) {
+    res.status(409).json({ error: err.message });
+  }
+}
+
+export async function redirectShortUrl(req: AuthRequest, res: Response): Promise<void> {
+  const code = toSingleString(req.params.code); // 👈 fix 1
+
+  const url = await UrlService.resolve(code);
+
+  if (!url) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+
+  res.redirect(302, url.longUrl);
+
+  ClickProducer.publish({
+    shortCode: code,
+    timestamp: Date.now(),
+    ip: req.ip ?? 'unknown',
+    userAgent: toSingleString(req.headers['user-agent'], 'unknown'), // 👈 fix 2
+    referrer: toSingleString(req.headers['referer'], undefined as any) || undefined,
+  }).catch((err) => console.error('[kafka] failed to publish click event:', err));
+
+  UrlService.incrementClickCount(code).catch((err) =>
+    console.error('[postgres] failed to increment click count:', err)
+  );
+}
+</file>
+
+<file path="url-shortener/src/middlewares/auth.middleware.ts">
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
+
+export interface AuthRequest extends Request {
+  userId?: string;
+}
+
+export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try {
+      const payload = jwt.verify(header.split(' ')[1], env.jwtSecret) as { userId: string };
+      req.userId = payload.userId;
+    } catch {
+      // ignore invalid token — treat as anonymous
+    }
+  }
+  next();
+}
+
+export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  try {
+    const payload = jwt.verify(header.split(' ')[1], env.jwtSecret) as { userId: string };
+    req.userId = payload.userId;
+    next();
+  } catch {
+    res.status(401).json({ error: 'invalid_token' });
+  }
+}
+</file>
+
+<file path="url-shortener/src/middlewares/rateLimiter.middleware.ts">
+import { Request, Response, NextFunction } from 'express';
+import { redis } from '../config/redis';
+
+const WINDOW_SECONDS = 60;
+const MAX_REQUESTS = 30;
+
+export async function rateLimiter(req: Request, res: Response, next: NextFunction) {
+  const key = `ratelimit:${req.ip}`;
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, WINDOW_SECONDS);
+
+  if (count > MAX_REQUESTS) {
+    res.status(429).json({ error: 'too_many_requests' });
+    return;
+  }
+  next();
+}
+</file>
+
+<file path="url-shortener/src/producers/click.producer.ts">
+import { kafka } from '../config/kafka';
+import { env } from '../config/env';
+import { ClickEvent } from '../types/click.types';
+
+const producer = kafka.producer();
+let connected = false;
+
+async function ensureConnected() {
+  if (!connected) {
+    await producer.connect();
+    connected = true;
+  }
+}
+
+export class ClickProducer {
+  static async publish(event: ClickEvent): Promise<void> {
+    await ensureConnected();
+    await producer.send({
+      topic: env.kafkaClickTopic,
+      messages: [{ key: event.shortCode, value: JSON.stringify(event) }],
+    });
+  }
+}
+</file>
+
+<file path="url-shortener/src/routes/auth.routes.ts">
+import { Router } from 'express';
+import { register, login } from '../controllers/auth.controller';
+
+export const authRouter = Router();
+authRouter.post('/auth/register', register);
+authRouter.post('/auth/login', login);
+</file>
+
+<file path="url-shortener/src/routes/stats.routes.ts">
+import { Router } from 'express';
+import { getUrlStats } from '../controllers/stats.controller';
+
+export const statsRouter = Router();
+statsRouter.get('/stats/:code', getUrlStats);
+</file>
+
+<file path="url-shortener/src/routes/url.routes.ts">
+import { Router } from 'express';
+import { createShortUrl, redirectShortUrl } from '../controllers/url.controller';
+import { optionalAuth } from '../middlewares/auth.middleware';
+import { rateLimiter } from '../middlewares/rateLimiter.middleware';
+
+export const urlRouter = Router();
+urlRouter.post('/shorten', rateLimiter, optionalAuth, createShortUrl);
+urlRouter.get('/:code', redirectShortUrl);
+</file>
+
+<file path="url-shortener/src/server.ts">
+import { createApp } from './app';
+import { env } from './config/env';
+
+const app = createApp();
+
+app.listen(env.port, () => {
+  console.log(`[api] listening on port ${env.port}`);
+});
+</file>
+
+<file path="url-shortener/src/services/auth.service.ts">
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../config/prisma';
+import { env } from '../config/env';
+
+export class AuthService {
+  static async register(name: string, email: string, password: string) {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) throw new Error('email_already_registered');
+
+    const hash = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({ data: { name, email, password: hash } });
+    return { id: user.id, name: user.name, email: user.email };
+  }
+
+  static async login(email: string, password: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new Error('invalid_credentials');
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) throw new Error('invalid_credentials');
+
+    const token = jwt.sign({ userId: user.id }, env.jwtSecret, { expiresIn: '7d' });
+    return { token, user: { id: user.id, name: user.name, email: user.email } };
+  }
+}
+</file>
+
+<file path="url-shortener/src/services/bloomFilter.service.ts">
+import { redis } from '../config/redis';
+
+const BIT_SIZE = 10_000_000;
+const HASH_COUNT = 5;
+const KEY = 'bloom:shortcodes';
+
+function hash(str: string, seed: number): number {
+  let h = 2166136261 ^ seed;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h) % BIT_SIZE;
+}
+
+function bitPositions(item: string): number[] {
+  const positions: number[] = [];
+  for (let i = 0; i < HASH_COUNT; i++) positions.push(hash(item, i * 7919));
+  return positions;
+}
+
+export class BloomFilterService {
+  static async add(code: string): Promise<void> {
+    const pipeline = redis.pipeline();
+    for (const pos of bitPositions(code)) pipeline.setbit(KEY, pos, 1);
+    await pipeline.exec();
+  }
+
+  static async mightContain(code: string): Promise<boolean> {
+    const pipeline = redis.pipeline();
+    for (const pos of bitPositions(code)) pipeline.getbit(KEY, pos);
+    const results = await pipeline.exec();
+    return (results ?? []).every(([err, bit]) => !err && bit === 1);
+  }
+}
+</file>
+
+<file path="url-shortener/src/services/shortCode.service.ts">
+import { randomInt } from 'crypto';
+import { prisma } from '../config/prisma';
+import { BloomFilterService } from './bloomFilter.service';
+
+const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const CODE_LENGTH = 7;
+const MAX_ATTEMPTS = 5;
+
+function generateCandidate(): string {
+  let code = '';
+  for (let i = 0; i < CODE_LENGTH; i++) code += CHARSET[randomInt(0, CHARSET.length)];
+  return code;
+}
+
+export class ShortCodeService {
+  static async generateUnique(): Promise<string> {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const candidate = generateCandidate();
+
+      const maybeExists = await BloomFilterService.mightContain(candidate);
+      if (!maybeExists) {
+        await BloomFilterService.add(candidate);
+        return candidate;
+      }
+
+      const existing = await prisma.url.findUnique({ where: { shortCode: candidate } });
+      if (!existing) {
+        await BloomFilterService.add(candidate);
+        return candidate;
+      }
+    }
+    throw new Error('Failed to generate unique short code after max attempts');
+  }
+}
+</file>
+
+<file path="url-shortener/src/services/stats.service.ts">
+import { getMongoDb } from '../config/mongo';
+
+export class StatsService {
+  static async getStatsFor(shortCode: string) {
+    const db = await getMongoDb();
+    const clicks = db.collection('clicks');
+
+    const [totalClicks, byOs, byDay] = await Promise.all([
+      clicks.countDocuments({ shortCode }),
+      clicks.aggregate([
+        { $match: { shortCode } },
+        { $group: { _id: '$os', count: { $sum: 1 } } },
+      ]).toArray(),
+      clicks.aggregate([
+        { $match: { shortCode } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]).toArray(),
+    ]);
+
+    return { shortCode, totalClicks, byOs, byDay };
+  }
+}
+</file>
+
+<file path="url-shortener/src/services/url.service.ts">
+import { prisma } from '../config/prisma';
+import { ShortCodeService } from './shortCode.service';
+import { CreateUrlInput } from '../types/url.schema';
+
+export class UrlService {
+  static async createShortUrl(input: CreateUrlInput, userId?: string) {
+    const shortCode = input.customAlias
+      ? await this.reserveCustomAlias(input.customAlias)
+      : await ShortCodeService.generateUnique();
+
+    return prisma.url.create({
+      data: {
+        shortCode,
+        longUrl: input.longUrl,
+        userId: userId ?? null,
+        expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      },
+    });
+  }
+
+  private static async reserveCustomAlias(alias: string): Promise<string> {
+    const existing = await prisma.url.findUnique({ where: { shortCode: alias } });
+    if (existing) throw new Error('alias_taken');
+    return alias;
+  }
+
+  static async resolve(shortCode: string) {
+    const url = await prisma.url.findUnique({ where: { shortCode } });
+    if (!url || !url.isActive) return null;
+    if (url.expiresAt && url.expiresAt < new Date()) return null;
+    return url;
+  }
+
+  static async incrementClickCount(shortCode: string) {
+    await prisma.url.update({ where: { shortCode }, data: { clicks: { increment: 1 } } });
+  }
+}
+</file>
+
+<file path="url-shortener/src/types/auth.schema.ts">
+import { z } from 'zod';
+
+export const registerSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+</file>
+
+<file path="url-shortener/src/types/click.types.ts">
+export interface ClickEvent {
+  shortCode: string;
+  timestamp: number;
+  ip: string;
+  userAgent: string;
+  os?: string;
+  referrer?: string;
+  country?: string;
+}
+</file>
+
+<file path="url-shortener/src/types/url.schema.ts">
+import { z } from 'zod';
+
+export const createUrlSchema = z.object({
+  longUrl: z.string().url(),
+  customAlias: z.string().min(4).max(20).optional(),
+  expiresAt: z.string().datetime().optional(),
+});
+export type CreateUrlInput = z.infer<typeof createUrlSchema>;
+</file>
+
+<file path="url-shortener/src/worker.ts">
+import { startClickConsumer } from './consumers/click.consumer';
+
+startClickConsumer().catch((err) => {
+  console.error('[worker] failed to start consumer:', err);
+  process.exit(1);
+});
+</file>
+
+<file path="url-shortener/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+</file>
+
+</files>
